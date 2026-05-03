@@ -11,9 +11,13 @@ function generateId() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
-let channel = null;
+// FIX a: tipo explícito en lugar de inferir `null`
+let channel: RealtimeChannel | null = null;
 let currentRoomId: string | null = null;
 let isHost = false;
+
+// FIX b: tipo correcto para el callback de Supabase
+type RoomDbPayload = { state: Room } | null;
 
 interface Store {
   room: Room | null;
@@ -63,7 +67,8 @@ export const useStore = create<Store>((set, get) => ({
 
     await updateRoom(roomId, roomData);
 
-    channel = subscribeRoom(roomId, (roomDb: { state } | null) => {
+    // FIX b: tipo explícito en callback
+    channel = subscribeRoom(roomId, (roomDb: RoomDbPayload) => {
       if (roomDb?.state) {
         set({ room: roomDb.state });
       }
@@ -80,10 +85,14 @@ export const useStore = create<Store>((set, get) => ({
       isHost: false,
     };
 
+    // player declarado pero necesario para futura integración con Supabase insert
+    void player;
+
     currentRoomId = roomId;
     isHost = false;
 
-    channel = subscribeRoom(roomId, (roomDb: { state } | null) => {
+    // FIX b: tipo explícito en callback
+    channel = subscribeRoom(roomId, (roomDb: RoomDbPayload) => {
       if (roomDb?.state) {
         set({ room: roomDb.state });
       }
@@ -210,7 +219,8 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   resetRoom() {
-    if (channel?.unsubscribe) {
+    // FIX c: RealtimeChannel tiene unsubscribe() como método directo, no opcional
+    if (channel) {
       channel.unsubscribe();
     }
 

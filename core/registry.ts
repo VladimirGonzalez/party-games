@@ -1,3 +1,4 @@
+"use client";
 import { GameModule } from "./types";
 import { mimicaGame } from "@/games/mimica";
 import { sonidoGame } from "@/games/sonido";
