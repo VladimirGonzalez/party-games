@@ -11,7 +11,7 @@ function generateId() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
-let channel: RealtimeChannel | null = null;
+let channel = null;
 let currentRoomId: string | null = null;
 let isHost = false;
 
@@ -63,7 +63,7 @@ export const useStore = create<Store>((set, get) => ({
 
     await updateRoom(roomId, roomData);
 
-    channel = subscribeRoom(roomId, (roomDb: any) => {
+    channel = subscribeRoom(roomId, (roomDb: { state } | null) => {
       if (roomDb?.state) {
         set({ room: roomDb.state });
       }
@@ -83,7 +83,7 @@ export const useStore = create<Store>((set, get) => ({
     currentRoomId = roomId;
     isHost = false;
 
-    channel = subscribeRoom(roomId, (roomDb: any) => {
+    channel = subscribeRoom(roomId, (roomDb: { state } | null) => {
       if (roomDb?.state) {
         set({ room: roomDb.state });
       }

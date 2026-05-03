@@ -15,7 +15,7 @@ export async function joinRoom(roomId: string, name: string) {
   })
 }
 
-export async function updateRoom(roomId: string, state: any) {
+export async function updateRoom(roomId: string, state: unknown) {
   await supabase
     .from('rooms')
     .update({ state })
