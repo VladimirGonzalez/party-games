@@ -63,7 +63,7 @@ export const useStore = create<Store>((set, get) => ({
     await updateRoom(roomId, roomData);
 
     // 🔥 escuchar cambios
-    channel = subscribeRoom(roomId, (roomDb) => {
+    channel = subscribeRoom(roomId, (roomDb: Room | null) => {
       if (roomDb?.state) {
         set({ room: roomDb.state });
       }
@@ -84,7 +84,7 @@ export const useStore = create<Store>((set, get) => ({
     isHost = false;
 
     // 🔥 escuchar cambios primero
-    channel = subscribeRoom(roomId, (roomDb) => {
+    channel = subscribeRoom(roomId, (roomDb: Room | null) => {
       if (roomDb?.state) {
         set({ room: roomDb.state });
       }
