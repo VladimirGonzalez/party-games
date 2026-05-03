@@ -27,6 +27,10 @@ interface SinDecirState extends GameState {
   violations: number;
 }
 
+function asSinDecir(state: GameState): SinDecirState {
+  return state as SinDecirState;
+}
+
 export const sinDecirGame: GameModule = {
   id: "sin-decir",
   name: "Sin Decir",
@@ -35,10 +39,10 @@ export const sinDecirGame: GameModule = {
   minPlayers: 2,
   maxPlayers: 10,
 
-  setup(players: Player[]): SinDecirState {
+  setup(players: Player[]): GameState {
     const scores: Record<string, number> = {};
     players.forEach((p) => (scores[p.id] = 0));
-    return {
+    const state: SinDecirState = {
       phase: "setup",
       currentPlayerId: players[0].id,
       round: 0,
@@ -48,56 +52,99 @@ export const sinDecirGame: GameModule = {
       actorIndex: 0,
       violations: 0,
     };
+    return state;
   },
 
-  start(state: SinDecirState): SinDecirState {
+  start(state: GameState): GameState {
+    const s = asSinDecir(state);
     const card = CARDS[Math.floor(Math.random() * CARDS.length)];
-    return { ...state, phase: "playing", round: state.round + 1, card, violations: 0, timer: 60 };
+    const next: SinDecirState = {
+      ...s,
+      phase: "playing",
+      round: s.round + 1,
+      card,
+      violations: 0,
+      timer: 60,
+    };
+    return next;
   },
 
-  onAction(state: SinDecirState, action: GameAction): SinDecirState {
-    const players = Object.keys(state.scores);
+  onAction(state: GameState, action: GameAction): GameState {
+    const s = asSinDecir(state);
+    const players = Object.keys(s.scores);
     const totalRounds = players.length * 2;
-    const nextIndex = (state.actorIndex + 1) % players.length;
+    const nextIndex = (s.actorIndex + 1) % players.length;
     const card = CARDS[Math.floor(Math.random() * CARDS.length)];
 
     if (action.type === "GUESS_CORRECT") {
-      const scores = { ...state.scores };
-      scores[state.actorId] = (scores[state.actorId] ?? 0) + 2;
+      const scores = { ...s.scores };
+      scores[s.actorId] = (scores[s.actorId] ?? 0) + 2;
       scores[action.playerId] = (scores[action.playerId] ?? 0) + 1;
-      if (state.round >= totalRounds) return { ...state, scores, phase: "finished" };
-      return { ...state, scores, actorIndex: nextIndex, actorId: players[nextIndex], currentPlayerId: players[nextIndex], card, round: state.round + 1, violations: 0, timer: 60 };
+      if (s.round >= totalRounds) return { ...s, scores, phase: "finished" };
+      const next: SinDecirState = {
+        ...s, scores,
+        actorIndex: nextIndex,
+        actorId: players[nextIndex],
+        currentPlayerId: players[nextIndex],
+        card,
+        round: s.round + 1,
+        violations: 0,
+        timer: 60,
+      };
+      return next;
     }
 
     if (action.type === "VIOLATION") {
-      const scores = { ...state.scores };
-      scores[state.actorId] = Math.max(0, (scores[state.actorId] ?? 0) - 1);
-      return { ...state, scores, violations: state.violations + 1 };
+      const scores = { ...s.scores };
+      scores[s.actorId] = Math.max(0, (scores[s.actorId] ?? 0) - 1);
+      return { ...s, scores, violations: s.violations + 1 };
     }
 
     if (action.type === "SKIP" || action.type === "TIMEOUT") {
-      if (state.round >= totalRounds) return { ...state, phase: "finished" };
-      return { ...state, actorIndex: nextIndex, actorId: players[nextIndex], currentPlayerId: players[nextIndex], card, round: state.round + 1, violations: 0, timer: 60 };
+      if (s.round >= totalRounds) return { ...s, phase: "finished" };
+      const next: SinDecirState = {
+        ...s,
+        actorIndex: nextIndex,
+        actorId: players[nextIndex],
+        currentPlayerId: players[nextIndex],
+        card,
+        round: s.round + 1,
+        violations: 0,
+        timer: 60,
+      };
+      return next;
     }
 
     return state;
   },
 
-  end(state: SinDecirState): GameResult {
+  end(state: GameState): GameResult {
     const sorted = Object.entries(state.scores).sort((a, b) => b[1] - a[1]);
-    return { winnerId: sorted[0]?.[0] ?? null, scores: state.scores, summary: "¡Hablar sin decir terminado!" };
+    return {
+      winnerId: sorted[0]?.[0] ?? null,
+      scores: state.scores,
+      summary: "¡Hablar sin decir terminado!",
+    };
   },
 
-  render(state: SinDecirState, playerId: string, dispatch) {
-    return <SinDecirView state={state} playerId={playerId} dispatch={dispatch} />;
+  render(state: GameState, playerId: string, dispatch) {
+    return <SinDecirView state={asSinDecir(state)} playerId={playerId} dispatch={dispatch} />;
   },
 };
 
-function SinDecirView({ state, playerId, dispatch }: { state: SinDecirState; playerId: string; dispatch: (a: GameAction) => void }) {
+function SinDecirView({
+  state,
+  playerId,
+  dispatch,
+}: {
+  state: SinDecirState;
+  playerId: string;
+  dispatch: (a: GameAction) => void;
+}) {
   const isActor = state.actorId === playerId;
   const [timeLeft, setTimeLeft] = useState(state.timer ?? 60);
 
-  useEffect(() => { setTimeLeft(state.timer ?? 60); }, [state.round]);
+  useEffect(() => { setTimeLeft(state.timer ?? 60); }, [state.round, state.timer]);
 
   useEffect(() => {
     if (state.phase !== "playing" || timeLeft <= 0) return;
@@ -108,6 +155,7 @@ function SinDecirView({ state, playerId, dispatch }: { state: SinDecirState; pla
       });
     }, 1000);
     return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.round, state.phase]);
 
   const pct = (timeLeft / 60) * 100;

@@ -5,13 +5,12 @@ import { sonidoGame } from "@/games/sonido";
 import { sinDecirGame } from "@/games/sin-decir";
 import { reaccionGame } from "@/games/reaccion";
 
-const registry = new Map<string, GameModule<any>>();
+const registry = new Map<string, GameModule>();
 
 function registerGame(game: GameModule) {
   registry.set(game.id, game);
 }
 
-// Register all games here — adding a new game = one line
 registerGame(mimicaGame);
 registerGame(sonidoGame);
 registerGame(sinDecirGame);

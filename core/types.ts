@@ -28,21 +28,21 @@ export interface GameState extends Record<string, any> {
   timer?: number;
 }
 
-export interface GameModule<TState extends GameState = GameState> {
+// GameModule usa GameState base — cada juego castea internamente a su propio tipo
+// Esto evita el problema de covarianza cuando el registry devuelve GameModule sin genérico
+export interface GameModule {
   id: string;
   name: string;
   description: string;
   emoji: string;
   minPlayers: number;
   maxPlayers: number;
-
-  setup(players: Player[]): TState;
-  start(state: TState): TState;
-  onAction(state: TState, action: GameAction): TState;
-  end(state: TState): GameResult;
-
+  setup(players: Player[]): GameState;
+  start(state: GameState): GameState;
+  onAction(state: GameState, action: GameAction): GameState;
+  end(state: GameState): GameResult;
   render(
-    state: TState,
+    state: GameState,
     playerId: string,
     dispatch: (action: GameAction) => void
   ): ReactNode;

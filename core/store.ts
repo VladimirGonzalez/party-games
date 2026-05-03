@@ -1,6 +1,5 @@
 "use client";
 
-import { GameModule } from "./types";
 import { create } from "zustand";
 import { Room, Player, GameAction } from "./types";
 import { getGame } from "./registry";
@@ -12,18 +11,15 @@ function generateId() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
-// FIX a: tipo explícito en lugar de inferir `null`
 let channel: RealtimeChannel | null = null;
 let currentRoomId: string | null = null;
 let isHost = false;
 
-// FIX b: tipo correcto para el callback de Supabase
 type RoomDbPayload = { state: Room } | null;
 
 interface Store {
   room: Room | null;
   localPlayerId: string | null;
-
   createRoom(playerName: string): Promise<void>;
   joinRoom(roomId: string, playerName: string): Promise<boolean>;
   selectGame(gameId: string): void;
@@ -61,18 +57,11 @@ export const useStore = create<Store>((set, get) => ({
     currentRoomId = roomId;
     isHost = true;
 
-    set({
-      localPlayerId: playerId,
-      room: roomData,
-    });
-
+    set({ localPlayerId: playerId, room: roomData });
     await updateRoom(roomId, roomData);
 
-    // FIX b: tipo explícito en callback
     channel = subscribeRoom(roomId, (roomDb: RoomDbPayload) => {
-      if (roomDb?.state) {
-        set({ room: roomDb.state });
-      }
+      if (roomDb?.state) set({ room: roomDb.state });
     });
   },
 
@@ -85,78 +74,56 @@ export const useStore = create<Store>((set, get) => ({
       score: 0,
       isHost: false,
     };
-
-    // player declarado pero necesario para futura integración con Supabase insert
     void player;
 
     currentRoomId = roomId;
     isHost = false;
 
-    // FIX b: tipo explícito en callback
     channel = subscribeRoom(roomId, (roomDb: RoomDbPayload) => {
-      if (roomDb?.state) {
-        set({ room: roomDb.state });
-      }
+      if (roomDb?.state) set({ room: roomDb.state });
     });
 
     set({ localPlayerId: playerId });
-
     return true;
   },
 
   selectGame(gameId: string) {
     const { room } = get();
     if (!room) return;
-
     const updated = { ...room, selectedGameId: gameId };
-
     set({ room: updated });
-
-    if (isHost && currentRoomId) {
-      updateRoom(currentRoomId, updated);
-    }
+    if (isHost && currentRoomId) updateRoom(currentRoomId, updated);
   },
 
   startGame() {
     const { room } = get();
     if (!room?.selectedGameId) return;
+    const game = getGame(room.selectedGameId);
+    if (!game) return;
 
-    const game = getGame(room.selectedGameId) as GameModule<any>;
-
+    // setup() y start() ahora devuelven GameState base — sin cast necesario
     const gameState = game.start(game.setup(room.players));
-
-    const updated = {
-      ...room,
-      phase: "playing" as const,
-      gameState,
-    };
+    const updated = { ...room, phase: "playing" as const, gameState };
 
     set({ room: updated });
-
-    if (isHost && currentRoomId) {
-      updateRoom(currentRoomId, updated);
-    }
+    if (isHost && currentRoomId) updateRoom(currentRoomId, updated);
   },
 
   dispatchAction(action: GameAction) {
     const { room } = get();
     if (!room?.selectedGameId || !room.gameState) return;
-
     const game = getGame(room.selectedGameId);
     if (!game) return;
 
     const newState = game.onAction(room.gameState, action);
-
     let updated: Room;
 
     if (newState.phase === "finished") {
       const result = game.end(newState);
-
       const updatedPlayers = room.players.map((p) => ({
         ...p,
         score: p.score + (result.scores[p.id] ?? 0),
       }));
-
       updated = {
         ...room,
         phase: "results",
@@ -165,69 +132,44 @@ export const useStore = create<Store>((set, get) => ({
         players: updatedPlayers,
       };
     } else {
-      updated = {
-        ...room,
-        gameState: newState,
-      };
+      updated = { ...room, gameState: newState };
     }
 
     set({ room: updated });
-
-    if (isHost && currentRoomId) {
-      updateRoom(currentRoomId, updated);
-    }
+    if (isHost && currentRoomId) updateRoom(currentRoomId, updated);
   },
 
   nextRound() {
     const { room } = get();
     if (!room?.selectedGameId || !room.gameState) return;
-
     const game = getGame(room.selectedGameId);
     if (!game) return;
 
     const newState = game.start(room.gameState);
-
-    const updated = {
-      ...room,
-      phase: "playing" as const,
-      gameState: newState,
-    };
+    const updated = { ...room, phase: "playing" as const, gameState: newState };
 
     set({ room: updated });
-
-    if (isHost && currentRoomId) {
-      updateRoom(currentRoomId, updated);
-    }
+    if (isHost && currentRoomId) updateRoom(currentRoomId, updated);
   },
 
   endGame() {
     const { room } = get();
     if (!room) return;
-
     const updated = {
       ...room,
       phase: "lobby" as const,
       gameState: null,
       lastResult: null,
     };
-
     set({ room: updated });
-
-    if (isHost && currentRoomId) {
-      updateRoom(currentRoomId, updated);
-    }
+    if (isHost && currentRoomId) updateRoom(currentRoomId, updated);
   },
 
   resetRoom() {
-    // FIX c: RealtimeChannel tiene unsubscribe() como método directo, no opcional
-    if (channel) {
-      channel.unsubscribe();
-    }
-
+    if (channel) channel.unsubscribe();
     channel = null;
     currentRoomId = null;
     isHost = false;
-
     set({ room: null, localPlayerId: null });
   },
 }));

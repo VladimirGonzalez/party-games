@@ -10,6 +10,10 @@ interface ReaccionState extends GameState {
   totalRounds: number;
 }
 
+function asReaccion(state: GameState): ReaccionState {
+  return state as ReaccionState;
+}
+
 export const reaccionGame: GameModule = {
   id: "reaccion",
   name: "Reacción",
@@ -18,11 +22,11 @@ export const reaccionGame: GameModule = {
   minPlayers: 2,
   maxPlayers: 8,
 
-  setup(players: Player[]): ReaccionState {
+  setup(players: Player[]): GameState {
     const scores: Record<string, number> = {};
     const roundWins: Record<string, number> = {};
     players.forEach((p) => { scores[p.id] = 0; roundWins[p.id] = 0; });
-    return {
+    const state: ReaccionState = {
       phase: "setup",
       currentPlayerId: null,
       round: 0,
@@ -33,27 +37,38 @@ export const reaccionGame: GameModule = {
       roundWins,
       totalRounds: Math.min(10, players.length * 3),
     };
+    return state;
   },
 
-  start(state: ReaccionState): ReaccionState {
-    return { ...state, phase: "playing", signal: "waiting", winnerOfRound: null, startTime: null, round: state.round + 1 };
+  start(state: GameState): GameState {
+    const s = asReaccion(state);
+    const next: ReaccionState = {
+      ...s,
+      phase: "playing",
+      signal: "waiting",
+      winnerOfRound: null,
+      startTime: null,
+      round: s.round + 1,
+    };
+    return next;
   },
 
-  onAction(state: ReaccionState, action: GameAction): ReaccionState {
+  onAction(state: GameState, action: GameAction): GameState {
+    const s = asReaccion(state);
+
     if (action.type === "SET_GO") {
-      return { ...state, signal: "go", startTime: action.payload as number };
+      return { ...s, signal: "go", startTime: action.payload as number };
     }
 
-    if (action.type === "TAP" && state.signal === "go" && !state.winnerOfRound) {
-      const reactionMs = Date.now() - (state.startTime ?? Date.now());
-      const scores = { ...state.scores };
-      const roundWins = { ...state.roundWins };
+    if (action.type === "TAP" && s.signal === "go" && !s.winnerOfRound) {
+      const scores = { ...s.scores };
+      const roundWins = { ...s.roundWins };
       scores[action.playerId] = (scores[action.playerId] ?? 0) + 1;
       roundWins[action.playerId] = (roundWins[action.playerId] ?? 0) + 1;
 
-      const newState = { ...state, signal: "done" as const, winnerOfRound: action.playerId, scores, roundWins };
+      const newState: ReaccionState = { ...s, signal: "done", winnerOfRound: action.playerId, scores, roundWins };
 
-      if (state.round >= state.totalRounds) {
+      if (s.round >= s.totalRounds) {
         return { ...newState, phase: "finished" };
       }
       return newState;
@@ -66,20 +81,31 @@ export const reaccionGame: GameModule = {
     return state;
   },
 
-  end(state: ReaccionState): GameResult {
+  end(state: GameState): GameResult {
     const sorted = Object.entries(state.scores).sort((a, b) => b[1] - a[1]);
-    return { winnerId: sorted[0]?.[0] ?? null, scores: state.scores, summary: "¡Reacción terminada!" };
+    return {
+      winnerId: sorted[0]?.[0] ?? null,
+      scores: state.scores,
+      summary: "¡Reacción terminada!",
+    };
   },
 
-  render(state: ReaccionState, playerId: string, dispatch) {
-    return <ReaccionView state={state} playerId={playerId} dispatch={dispatch} />;
+  render(state: GameState, playerId: string, dispatch) {
+    return <ReaccionView state={asReaccion(state)} playerId={playerId} dispatch={dispatch} />;
   },
 };
 
-function ReaccionView({ state, playerId, dispatch }: { state: ReaccionState; playerId: string; dispatch: (a: GameAction) => void }) {
+function ReaccionView({
+  state,
+  playerId,
+  dispatch,
+}: {
+  state: ReaccionState;
+  playerId: string;
+  dispatch: (a: GameAction) => void;
+}) {
   const [countdown, setCountdown] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isHost = true; // In local MVP, first player manages the signal
 
   const startCountdown = useCallback(() => {
     if (state.signal !== "waiting") return;
@@ -90,7 +116,6 @@ function ReaccionView({ state, playerId, dispatch }: { state: ReaccionState; pla
       if (count <= 0) {
         clearInterval(tick);
         setCountdown(null);
-        // Random delay before GO
         const delay = 500 + Math.random() * 3000;
         timerRef.current = setTimeout(() => {
           dispatch({ type: "SET_GO", playerId, payload: Date.now() });

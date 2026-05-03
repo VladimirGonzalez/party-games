@@ -24,6 +24,10 @@ interface SonidoState extends GameState {
   guessedThisRound: boolean;
 }
 
+function asSonido(state: GameState): SonidoState {
+  return state as SonidoState;
+}
+
 export const sonidoGame: GameModule = {
   id: "sonido",
   name: "Sonidos",
@@ -32,10 +36,10 @@ export const sonidoGame: GameModule = {
   minPlayers: 2,
   maxPlayers: 10,
 
-  setup(players: Player[]): SonidoState {
+  setup(players: Player[]): GameState {
     const scores: Record<string, number> = {};
     players.forEach((p) => (scores[p.id] = 0));
-    return {
+    const state: SonidoState = {
       phase: "setup",
       currentPlayerId: players[0].id,
       round: 0,
@@ -45,61 +49,67 @@ export const sonidoGame: GameModule = {
       actorIndex: 0,
       guessedThisRound: false,
     };
+    return state;
   },
 
-  start(state: SonidoState): SonidoState {
-    return {
-      ...state,
+  start(state: GameState): GameState {
+    const s = asSonido(state);
+    const next: SonidoState = {
+      ...s,
       phase: "playing",
-      round: state.round + 1,
+      round: s.round + 1,
       sound: SOUNDS[Math.floor(Math.random() * SOUNDS.length)],
       guessedThisRound: false,
       timer: 45,
     };
+    return next;
   },
 
-  onAction(state: SonidoState, action: GameAction): SonidoState {
-    const players = Object.keys(state.scores);
+  onAction(state: GameState, action: GameAction): GameState {
+    const s = asSonido(state);
+    const players = Object.keys(s.scores);
     const totalRounds = players.length * 2;
-    const nextActorIndex = (state.actorIndex + 1) % players.length;
+    const nextActorIndex = (s.actorIndex + 1) % players.length;
 
     if (action.type === "GUESS_CORRECT") {
-      const scores = { ...state.scores };
-      scores[state.actorId] = (scores[state.actorId] ?? 0) + 1;
+      const scores = { ...s.scores };
+      scores[s.actorId] = (scores[s.actorId] ?? 0) + 1;
       scores[action.playerId] = (scores[action.playerId] ?? 0) + 1;
 
-      if (state.round >= totalRounds) {
-        return { ...state, scores, phase: "finished", guessedThisRound: true };
+      if (s.round >= totalRounds) {
+        return { ...s, scores, phase: "finished", guessedThisRound: true };
       }
 
-      return {
-        ...state, scores, guessedThisRound: true,
+      const next: SonidoState = {
+        ...s, scores, guessedThisRound: true,
         actorIndex: nextActorIndex,
         actorId: players[nextActorIndex],
         currentPlayerId: players[nextActorIndex],
         sound: SOUNDS[Math.floor(Math.random() * SOUNDS.length)],
-        round: state.round + 1,
+        round: s.round + 1,
         timer: 45,
       };
+      return next;
     }
 
     if (action.type === "SKIP" || action.type === "TIMEOUT") {
-      if (state.round >= totalRounds) return { ...state, phase: "finished" };
-      return {
-        ...state, guessedThisRound: false,
+      if (s.round >= totalRounds) return { ...s, phase: "finished" };
+      const next: SonidoState = {
+        ...s, guessedThisRound: false,
         actorIndex: nextActorIndex,
         actorId: players[nextActorIndex],
         currentPlayerId: players[nextActorIndex],
         sound: SOUNDS[Math.floor(Math.random() * SOUNDS.length)],
-        round: state.round + 1,
+        round: s.round + 1,
         timer: 45,
       };
+      return next;
     }
 
     return state;
   },
 
-  end(state: SonidoState): GameResult {
+  end(state: GameState): GameResult {
     const sorted = Object.entries(state.scores).sort((a, b) => b[1] - a[1]);
     return {
       winnerId: sorted[0]?.[0] ?? null,
@@ -108,8 +118,8 @@ export const sonidoGame: GameModule = {
     };
   },
 
-  render(state: SonidoState, playerId: string, dispatch) {
-    return <SonidoView state={state} playerId={playerId} dispatch={dispatch} />;
+  render(state: GameState, playerId: string, dispatch) {
+    return <SonidoView state={asSonido(state)} playerId={playerId} dispatch={dispatch} />;
   },
 };
 
@@ -125,7 +135,7 @@ function SonidoView({
   const isActor = state.actorId === playerId;
   const [timeLeft, setTimeLeft] = useState(state.timer ?? 45);
 
-  useEffect(() => { setTimeLeft(state.timer ?? 45); }, [state.round]);
+  useEffect(() => { setTimeLeft(state.timer ?? 45); }, [state.round, state.timer]);
 
   useEffect(() => {
     if (state.phase !== "playing" || timeLeft <= 0) return;
@@ -136,6 +146,7 @@ function SonidoView({
       });
     }, 1000);
     return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.round, state.phase]);
 
   const pct = (timeLeft / 45) * 100;
