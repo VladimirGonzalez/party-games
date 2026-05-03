@@ -1,5 +1,6 @@
 "use client";
 
+import { GameModule } from "./types";
 import { create } from "zustand";
 import { Room, Player, GameAction } from "./types";
 import { getGame } from "./registry";
