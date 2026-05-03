@@ -28,18 +28,24 @@ export interface GameState extends Record<string, any> {
   timer?: number;
 }
 
-export interface GameModule {
+export interface GameModule<TState extends GameState = GameState> {
   id: string;
   name: string;
   description: string;
   emoji: string;
   minPlayers: number;
   maxPlayers: number;
-  setup(players: Player[]): GameState;
-  start(state: GameState): GameState;
-  onAction(state: GameState, action: GameAction): GameState;
-  end(state: GameState): GameResult;
-  render(state: GameState, playerId: string, dispatch: (action: GameAction) => void): ReactNode;
+
+  setup(players: Player[]): TState;
+  start(state: TState): TState;
+  onAction(state: TState, action: GameAction): TState;
+  end(state: TState): GameResult;
+
+  render(
+    state: TState,
+    playerId: string,
+    dispatch: (action: GameAction) => void
+  ): ReactNode;
 }
 
 export type RoomPhase = "lobby" | "playing" | "results";

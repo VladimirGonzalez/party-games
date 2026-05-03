@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from "react";
 import { GameModule, GameState, Player, GameAction, GameResult } from "@/core/types";
 
+const state = gameState as MimicaState;
+
 const WORDS = [
   "Elefante", "Bailar", "Cocinar", "Nadar", "Dormir",
   "Bicicleta", "Astronauta", "Dentista", "Fantasma", "Robot",

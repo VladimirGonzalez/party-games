@@ -5,7 +5,7 @@ import { sonidoGame } from "@/games/sonido";
 import { sinDecirGame } from "@/games/sin-decir";
 import { reaccionGame } from "@/games/reaccion";
 
-const registry = new Map<string, GameModule>();
+const registry = new Map<string, GameModule<any>>();
 
 function registerGame(game: GameModule) {
   registry.set(game.id, game);

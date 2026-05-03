@@ -120,8 +120,7 @@ export const useStore = create<Store>((set, get) => ({
     const { room } = get();
     if (!room?.selectedGameId) return;
 
-    const game = getGame(room.selectedGameId);
-    if (!game) return;
+    const game = getGame(room.selectedGameId) as GameModule<any>;
 
     const gameState = game.start(game.setup(room.players));
 
