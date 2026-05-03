@@ -5,12 +5,13 @@ import { Room, Player, GameAction } from "./types";
 import { getGame } from "./registry";
 import { subscribeRoom } from "./realtime";
 import { updateRoom } from "./rooms";
+import { RealtimeChannel } from "@supabase/supabase-js";
 
 function generateId() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
-let channel: any = null;
+let channel: RealtimeChannel | null = null;
 let currentRoomId: string | null = null;
 let isHost = false;
 
