@@ -1,4 +1,5 @@
 "use client";
+
 import { create } from "zustand";
 import { Room, Player, GameAction } from "./types";
 import { getGame } from "./registry";
@@ -17,7 +18,7 @@ interface Store {
   room: Room | null;
   localPlayerId: string | null;
 
-  createRoom(playerName: string): void;
+  createRoom(playerName: string): Promise<void>;
   joinRoom(roomId: string, playerName: string): Promise<boolean>;
   selectGame(gameId: string): void;
   startGame(): void;
@@ -31,7 +32,7 @@ export const useStore = create<Store>((set, get) => ({
   room: null,
   localPlayerId: null,
 
-  async createRoom(playerName) {
+  async createRoom(playerName: string) {
     const playerId = generateId();
     const roomId = generateId();
 
@@ -59,18 +60,16 @@ export const useStore = create<Store>((set, get) => ({
       room: roomData,
     });
 
-    // 🔥 subir a Supabase
     await updateRoom(roomId, roomData);
 
-    // 🔥 escuchar cambios
-    channel = subscribeRoom(roomId, (roomDb: Room | null) => {
+    channel = subscribeRoom(roomId, (roomDb: any) => {
       if (roomDb?.state) {
         set({ room: roomDb.state });
       }
     });
   },
 
-  async joinRoom(roomId, playerName) {
+  async joinRoom(roomId: string, playerName: string) {
     const playerId = generateId();
 
     const player: Player = {
@@ -83,31 +82,27 @@ export const useStore = create<Store>((set, get) => ({
     currentRoomId = roomId;
     isHost = false;
 
-    // 🔥 escuchar cambios primero
-    channel = subscribeRoom(roomId, (roomDb: Room | null) => {
+    channel = subscribeRoom(roomId, (roomDb: any) => {
       if (roomDb?.state) {
         set({ room: roomDb.state });
       }
     });
 
-    set({
-      localPlayerId: playerId,
-    });
+    set({ localPlayerId: playerId });
 
-    // ⚠️ el host es quien realmente agrega jugadores al state
     return true;
   },
 
-  selectGame(gameId) {
+  selectGame(gameId: string) {
     const { room } = get();
     if (!room) return;
 
-    const updatedRoom = { ...room, selectedGameId: gameId };
+    const updated = { ...room, selectedGameId: gameId };
 
-    set({ room: updatedRoom });
+    set({ room: updated });
 
     if (isHost && currentRoomId) {
-      updateRoom(currentRoomId, updatedRoom);
+      updateRoom(currentRoomId, updated);
     }
   },
 
@@ -120,20 +115,20 @@ export const useStore = create<Store>((set, get) => ({
 
     const gameState = game.start(game.setup(room.players));
 
-    const updatedRoom = {
+    const updated = {
       ...room,
-      phase: "playing",
+      phase: "playing" as const,
       gameState,
     };
 
-    set({ room: updatedRoom });
+    set({ room: updated });
 
     if (isHost && currentRoomId) {
-      updateRoom(currentRoomId, updatedRoom);
+      updateRoom(currentRoomId, updated);
     }
   },
 
-  dispatchAction(action) {
+  dispatchAction(action: GameAction) {
     const { room } = get();
     if (!room?.selectedGameId || !room.gameState) return;
 
@@ -142,7 +137,7 @@ export const useStore = create<Store>((set, get) => ({
 
     const newState = game.onAction(room.gameState, action);
 
-    let updatedRoom: Room;
+    let updated: Room;
 
     if (newState.phase === "finished") {
       const result = game.end(newState);
@@ -152,7 +147,7 @@ export const useStore = create<Store>((set, get) => ({
         score: p.score + (result.scores[p.id] ?? 0),
       }));
 
-      updatedRoom = {
+      updated = {
         ...room,
         phase: "results",
         gameState: newState,
@@ -160,16 +155,16 @@ export const useStore = create<Store>((set, get) => ({
         players: updatedPlayers,
       };
     } else {
-      updatedRoom = {
+      updated = {
         ...room,
         gameState: newState,
       };
     }
 
-    set({ room: updatedRoom });
+    set({ room: updated });
 
     if (isHost && currentRoomId) {
-      updateRoom(currentRoomId, updatedRoom);
+      updateRoom(currentRoomId, updated);
     }
   },
 
@@ -182,16 +177,16 @@ export const useStore = create<Store>((set, get) => ({
 
     const newState = game.start(room.gameState);
 
-    const updatedRoom = {
+    const updated = {
       ...room,
-      phase: "playing",
+      phase: "playing" as const,
       gameState: newState,
     };
 
-    set({ room: updatedRoom });
+    set({ room: updated });
 
     if (isHost && currentRoomId) {
-      updateRoom(currentRoomId, updatedRoom);
+      updateRoom(currentRoomId, updated);
     }
   },
 
@@ -199,26 +194,26 @@ export const useStore = create<Store>((set, get) => ({
     const { room } = get();
     if (!room) return;
 
-    const updatedRoom = {
+    const updated = {
       ...room,
-      phase: "lobby",
+      phase: "lobby" as const,
       gameState: null,
       lastResult: null,
     };
 
-    set({ room: updatedRoom });
+    set({ room: updated });
 
     if (isHost && currentRoomId) {
-      updateRoom(currentRoomId, updatedRoom);
+      updateRoom(currentRoomId, updated);
     }
   },
 
   resetRoom() {
-    if (channel) {
+    if (channel?.unsubscribe) {
       channel.unsubscribe();
-      channel = null;
     }
 
+    channel = null;
     currentRoomId = null;
     isHost = false;
 
