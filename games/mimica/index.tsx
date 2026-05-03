@@ -103,7 +103,7 @@ export const mimicaGame: GameModule = {
     }
 
     if (action.type === "TIMEOUT") {
-      return mimicaGame.onAction(state, { ...action, type: "SKIP" });
+      return mimicaGame.onAction(state as MimicaState, { ...action, type: "SKIP" });
     }
 
     return state;
