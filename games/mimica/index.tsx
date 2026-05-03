@@ -102,8 +102,17 @@ export const mimicaGame: GameModule = {
     }
 
     if (action.type === "TIMEOUT") {
-      return this.onAction(state, { ...action, type: "SKIP" });
-    }
+  return {
+    ...state,
+    actorIndex: (state.actorIndex + 1) % Object.keys(state.scores).length,
+    actorId: Object.keys(state.scores)[(state.actorIndex + 1) % Object.keys(state.scores).length],
+    currentPlayerId: Object.keys(state.scores)[(state.actorIndex + 1) % Object.keys(state.scores).length],
+    word: "",
+    round: state.round + 1,
+    timer: 60,
+    guessedThisRound: false,
+  } as MimicaState;
+}
 
     return state;
   },
