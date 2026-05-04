@@ -1,8 +1,10 @@
+export const dynamic = "force-dynamic";
 "use client";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/core/store";
 import { getGame } from "@/core/registry";
+export const dynamic = "force-dynamic";
 
 export default function GamePage() {
   const router = useRouter();
