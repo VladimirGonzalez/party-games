@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { getSupabase } from "./supabase";
 
 export async function createRoom(roomId: string) {
   await supabase.from('rooms').insert({
@@ -20,4 +21,11 @@ export async function updateRoom(roomId: string, state: unknown) {
     .from('rooms')
     .update({ state })
     .eq('id', roomId)
+}
+
+export async function updateRoom(roomId: string, state: unknown) {
+  await getSupabase()
+    .from("rooms")
+    .update({ state })
+    .eq("id", roomId);
 }

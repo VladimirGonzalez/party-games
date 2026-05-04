@@ -1,92 +1,110 @@
 "use client";
-import { useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/core/store";
+import { getAllGames } from "@/core/registry";
 
-export default function HomePage() {
+export default function LobbyPage() {
   const router = useRouter();
-  const { createRoom, joinRoom, room } = useStore();
-  const [mode, setMode] = useState<"idle" | "create" | "join">("idle");
-  const [name, setName] = useState("");
-  const [roomId, setRoomId] = useState("");
-  const [error, setError] = useState("");
+  const { room, localPlayerId, selectGame, startGame } = useStore();
+  const games = getAllGames();
 
-  function handleCreate() {
-    if (!name.trim()) return setError("Escribe tu nombre");
-    createRoom(name.trim());
-    router.push("/lobby");
-  }
+  useEffect(() => {
+    // FIX 2: else-if evita evaluar las 3 condiciones en el mismo render
+    // Antes: !room disparaba redirect aunque joinRoom estuviera en progreso
+    if (!room) {
+      router.replace("/");
+    } else if (room.phase === "playing") {
+      router.replace("/game");
+    } else if (room.phase === "results") {
+      router.replace("/results");
+    }
+  }, [room, router]);
 
-  function handleJoin() {
-    if (!name.trim()) return setError("Escribe tu nombre");
-    if (!roomId.trim()) return setError("Escribe el código de sala");
-    const ok = joinRoom(roomId.trim().toUpperCase(), name.trim());
-    if (!ok) return setError("Sala no encontrada. ¿El código es correcto?");
-    router.push("/lobby");
+  if (!room) return null;
+
+  const localPlayer = room.players.find((p) => p.id === localPlayerId);
+  const isHost = localPlayer?.isHost;
+  const canStart = !!room.selectedGameId && room.players.length >= 2;
+  const selectedGame = games.find((g) => g.id === room.selectedGameId);
+
+  function handleStart() {
+    startGame();
+    router.push("/game");
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6">
-      {/* Logo */}
-      <div className="mb-10 text-center">
-        <div className="text-6xl mb-3">🎉</div>
-        <h1 className="text-white text-4xl font-black tracking-tight">Party Games</h1>
-        <p className="text-gray-500 text-sm mt-1">Juegos para jugar en grupo</p>
+    <main className="min-h-screen bg-gray-950 flex flex-col p-4 max-w-md mx-auto">
+      <div className="flex items-center justify-between mb-6 mt-2">
+        <div>
+          <h2 className="text-white text-xl font-black">Sala</h2>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-gray-400 text-sm">Código:</span>
+            <span className="text-yellow-400 font-black tracking-widest text-lg">{room.id}</span>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-gray-400 text-xs">Jugadores</p>
+          <p className="text-white text-2xl font-black">{room.players.length}</p>
+        </div>
       </div>
 
-      {mode === "idle" && (
-        <div className="flex flex-col gap-3 w-full max-w-xs">
-          <button
-            onClick={() => setMode("create")}
-            className="bg-yellow-400 text-black font-black text-lg py-4 rounded-2xl active:scale-95 transition-all shadow-lg"
-          >
-            🏠 Crear sala
-          </button>
-          <button
-            onClick={() => setMode("join")}
-            className="bg-gray-800 text-white font-bold text-lg py-4 rounded-2xl active:scale-95 transition-all border border-gray-700"
-          >
-            🚪 Unirse a sala
-          </button>
+      <div className="bg-gray-800 rounded-2xl p-4 mb-5">
+        <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-3">En la sala</p>
+        <div className="flex flex-col gap-2">
+          {room.players.map((p) => (
+            <div key={p.id} className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-sm font-bold text-white">
+                {p.name[0].toUpperCase()}
+              </div>
+              <span className={`font-semibold ${p.id === localPlayerId ? "text-yellow-400" : "text-white"}`}>
+                {p.name} {p.id === localPlayerId ? "(tú)" : ""} {p.isHost ? "👑" : ""}
+              </span>
+            </div>
+          ))}
+        </div>
+        {room.players.length < 2 && (
+          <p className="text-gray-500 text-xs mt-3">Comparte el código para que otros se unan</p>
+        )}
+      </div>
+
+      <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-3">Elige un juego</p>
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        {games.map((g) => {
+          const selected = room.selectedGameId === g.id;
+          const available = room.players.length >= g.minPlayers;
+          return (
+            <button
+              key={g.id}
+              onClick={() => isHost && selectGame(g.id)}
+              disabled={!isHost}
+              className={`rounded-2xl p-4 text-left transition-all border-2 active:scale-95 ${
+                selected ? "bg-yellow-400 border-yellow-400 text-black"
+                : available ? "bg-gray-800 border-gray-700 text-white hover:border-gray-500"
+                : "bg-gray-900 border-gray-800 text-gray-600 opacity-60"
+              }`}
+            >
+              <div className="text-3xl mb-2">{g.emoji}</div>
+              <p className={`font-bold text-sm ${selected ? "text-black" : "text-white"}`}>{g.name}</p>
+              <p className={`text-xs mt-0.5 ${selected ? "text-black/60" : "text-gray-500"}`}>{g.description}</p>
+              <p className={`text-xs mt-1 ${selected ? "text-black/50" : "text-gray-600"}`}>{g.minPlayers}–{g.maxPlayers} jugadores</p>
+            </button>
+          );
+        })}
+      </div>
+
+      {isHost ? (
+        <button onClick={handleStart} disabled={!canStart}
+          className={`py-4 rounded-2xl font-black text-lg transition-all active:scale-95 ${
+            canStart ? "bg-yellow-400 text-black shadow-lg" : "bg-gray-800 text-gray-600 cursor-not-allowed"
+          }`}>
+          {canStart ? `¡Empezar ${selectedGame?.name}!` : "Selecciona un juego (mín. 2 jugadores)"}
+        </button>
+      ) : (
+        <div className="bg-gray-800 rounded-2xl py-4 text-center">
+          <p className="text-gray-400 text-sm">Esperando al host…</p>
         </div>
       )}
-
-      {(mode === "create" || mode === "join") && (
-        <div className="w-full max-w-xs flex flex-col gap-3">
-          <button onClick={() => { setMode("idle"); setError(""); }} className="text-gray-500 text-sm mb-1 text-left">← Volver</button>
-          <input
-            type="text"
-            placeholder="Tu nombre"
-            value={name}
-            onChange={(e) => { setName(e.target.value); setError(""); }}
-            className="bg-gray-800 text-white placeholder-gray-500 px-4 py-3 rounded-xl text-lg outline-none focus:ring-2 focus:ring-yellow-400 border border-gray-700"
-            maxLength={16}
-            autoFocus
-          />
-
-          {mode === "join" && (
-            <input
-              type="text"
-              placeholder="Código de sala"
-              value={roomId}
-              onChange={(e) => { setRoomId(e.target.value.toUpperCase()); setError(""); }}
-              className="bg-gray-800 text-white placeholder-gray-500 px-4 py-3 rounded-xl text-lg outline-none focus:ring-2 focus:ring-yellow-400 border border-gray-700 uppercase tracking-widest"
-              maxLength={6}
-            />
-          )}
-
-          {error && <p className="text-red-400 text-sm text-center">{error}</p>}
-
-          <button
-            onClick={mode === "create" ? handleCreate : handleJoin}
-            className="bg-yellow-400 text-black font-black text-lg py-4 rounded-2xl active:scale-95 transition-all shadow-lg mt-1"
-          >
-            {mode === "create" ? "Crear sala" : "Unirse"}
-          </button>
-        </div>
-      )}
-
-      <p className="text-gray-700 text-xs mt-12">Sin cuenta · Sin registro · Juega ya</p>
     </main>
   );
 }

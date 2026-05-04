@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { Room, Player, GameAction } from "./types";
 import { getGame } from "./registry";
 import { subscribeRoom } from "./realtime";
-import { updateRoom } from "./rooms";
+import { updateRoom, fetchRoom } from "./rooms";
 import { RealtimeChannel } from "@supabase/supabase-js";
 
 function generateId() {
@@ -68,22 +68,41 @@ export const useStore = create<Store>((set, get) => ({
   async joinRoom(roomId: string, playerName: string) {
     const playerId = generateId();
 
+    // BUG FIX 1: Leer el estado actual de la sala desde Supabase
+    // Antes: room quedaba null hasta el próximo UPDATE del host
+    // Ahora: fetch inmediato para obtener el estado actual
+    const currentRoom = await fetchRoom(roomId);
+    if (!currentRoom) return false;
+
     const player: Player = {
       id: playerId,
       name: playerName,
       score: 0,
       isHost: false,
     };
-    void player;
+
+    // BUG FIX 3: Agregar el jugador al room y persistir en Supabase
+    // Antes: void player — el jugador se construía y se descartaba
+    // Ahora: se agrega a la lista de players y se guarda
+    const updatedRoom: Room = {
+      ...currentRoom,
+      players: [...currentRoom.players, player],
+    };
 
     currentRoomId = roomId;
     isHost = false;
 
+    // Setear room inmediatamente — no esperar al próximo evento de Supabase
+    set({ localPlayerId: playerId, room: updatedRoom });
+
+    // Persistir el room con el nuevo jugador incluido
+    await updateRoom(roomId, updatedRoom);
+
+    // Suscribirse a cambios futuros del room
     channel = subscribeRoom(roomId, (roomDb: RoomDbPayload) => {
       if (roomDb?.state) set({ room: roomDb.state });
     });
 
-    set({ localPlayerId: playerId });
     return true;
   },
 
@@ -100,11 +119,8 @@ export const useStore = create<Store>((set, get) => ({
     if (!room?.selectedGameId) return;
     const game = getGame(room.selectedGameId);
     if (!game) return;
-
-    // setup() y start() ahora devuelven GameState base — sin cast necesario
     const gameState = game.start(game.setup(room.players));
     const updated = { ...room, phase: "playing" as const, gameState };
-
     set({ room: updated });
     if (isHost && currentRoomId) updateRoom(currentRoomId, updated);
   },
@@ -144,10 +160,8 @@ export const useStore = create<Store>((set, get) => ({
     if (!room?.selectedGameId || !room.gameState) return;
     const game = getGame(room.selectedGameId);
     if (!game) return;
-
     const newState = game.start(room.gameState);
     const updated = { ...room, phase: "playing" as const, gameState: newState };
-
     set({ room: updated });
     if (isHost && currentRoomId) updateRoom(currentRoomId, updated);
   },
